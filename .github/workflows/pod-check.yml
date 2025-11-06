@@ -31,11 +31,11 @@ jobs:
 
     - name: Setup Bastion Config
       run: |
-        mkdir ~/.ssh/
-        touch ~/.ssh/config 
-        echo "${{ secrets.SSH_CONFIG }}" > ~/.ssh/config
-        ssh-copy-id root@178.124.206.53
-        ssh-copy-id root@192.168.208.7
+        mkdir ~/.ssh/ ;
+        touch ~/.ssh/config ;
+        echo "${{ secrets.SSH_CONFIG }}" > ~/.ssh/config ;
+        ssh-copy-id root@178.124.206.53 ;
+        ssh-copy-id root@192.168.208.7 ;
 
 
     - name: SSH Port Forwarding
