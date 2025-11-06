@@ -1,0 +1,180 @@
+name: Kubernetes Pod Health Check
+on:
+  schedule:
+    # Run every 60 minutes
+    - cron: '*/60 * * * *'
+  workflow_dispatch:
+    # Allow manual triggering
+    inputs:
+      namespace:
+        description: 'Specific namespace to check (default: all namespaces)'
+        required: false
+        default: ''
+
+jobs:
+  pod-health-check:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
+
+    - name: Configure Kubernetes context
+      run: |
+        echo "${{ secrets.KUBECONFIG }}" > kubeconfig.yaml
+        export KUBECONFIG=kubeconfig.yaml
+        
+        # Test cluster connection
+        kubectl cluster-info
+
+    - name: Check pod status
+      id: pod-check
+      run: |
+        export KUBECONFIG=kubeconfig.yaml
+        
+        # Set namespace if provided, otherwise check all namespaces
+        NAMESPACE_FLAG=""
+        if [ -n "${{ github.event.inputs.namespace }}" ]; then
+          NAMESPACE_FLAG="-n ${{ github.event.inputs.namespace }}"
+        else
+          NAMESPACE_FLAG="-A"
+        fi
+        
+        # Get problematic pods (Failed, Error, CrashLoopBackOff, ImagePullBackOff, etc.)
+        kubectl get pods $NAMESPACE_FLAG --field-selector=status.phase!=Running,status.phase!=Succeeded --no-headers > failed_pods.txt || true
+        
+        # Count total problematic pods
+        PROBLEMATIC_PODS_COUNT=$(cat failed_pods.txt | wc -l | tr -d ' ')
+        
+        # Get detailed information about problematic pods
+        if [ $PROBLEMATIC_PODS_COUNT -gt 0 ]; then
+          echo "❌ Found $PROBLEMATIC_PODS_COUNT problematic pod(s)"
+          
+          # Get detailed pod information
+          kubectl get pods $NAMESPACE_FLAG --field-selector=status.phase!=Running,status.phase!=Succeeded -o wide > detailed_failed_pods.txt
+          
+          # Get pod events and logs for troubleshooting
+          echo "### Troubleshooting Information:" > debug_info.txt
+          while IFS= read -r line; do
+            if [ -n "$line" ]; then
+              POD_NAME=$(echo "$line" | awk '{print $2}')
+              NAMESPACE=$(echo "$line" | awk '{print $1}')
+              echo "--- Pod: $POD_NAME (Namespace: $NAMESPACE) ---" >> debug_info.txt
+              
+              # Get pod events
+              echo "Events:" >> debug_info.txt
+              kubectl get events -n $NAMESPACE --field-selector involvedObject.name=$POD_NAME --sort-by='.lastTimestamp' >> debug_info.txt 2>/dev/null || echo "No events found" >> debug_info.txt
+              
+              # Get pod description
+              echo -e "\nDescription:" >> debug_info.txt
+              kubectl describe pod $POD_NAME -n $NAMESPACE >> debug_info.txt 2>/dev/null || echo "Cannot describe pod" >> debug_info.txt
+              
+              echo -e "\n" >> debug_info.txt
+            fi
+          done < failed_pods.txt
+        else
+          echo "✅ All pods are healthy!"
+        fi
+        
+        # Set outputs for Slack notification
+        echo "problematic_pods_count=$PROBLEMATIC_PODS_COUNT" >> $GITHUB_OUTPUT
+        echo "has_problematic_pods=$(if [ $PROBLEMATIC_PODS_COUNT -gt 0 ]; then echo 'true'; else echo 'false'; fi)" >> $GITHUB_OUTPUT
+
+    - name: Send Slack notification for failed pods
+      if: steps.pod-check.outputs.has_problematic_pods == 'true'
+      uses: slackapi/slack-github-action@v1.24.0
+      with:
+        payload: |
+          {
+            "text": "🚨 Kubernetes Pod Health Alert",
+            "blocks": [
+              {
+                "type": "header",
+                "text": {
+                  "type": "plain_text",
+                  "text": "🚨 Kubernetes Pod Health Alert"
+                }
+              },
+              {
+                "type": "section",
+                "fields": [
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Cluster:*\n${{ secrets.CLUSTER_NAME || 'Production' }}"
+                  },
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Problematic Pods:*\n${{ steps.pod-check.outputs.problematic_pods_count }}"
+                  }
+                ]
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*Affected Pods:*\n```${{ env.FAILED_PODS_LIST }}```"
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "Please check the cluster and investigate the failing pods."
+                }
+              },
+              {
+                "type": "actions",
+                "elements": [
+                  {
+                    "type": "button",
+                    "text": {
+                      "type": "plain_text",
+                      "text": "View GitHub Action"
+                    },
+                    "url": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                  }
+                ]
+              }
+            ]
+          }
+      env:
+        FAILED_PODS_LIST: ${{ steps.pod-check.outputs.failed_pods_list }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+
+    - name: Send success notification
+      if: steps.pod-check.outputs.has_problematic_pods == 'false'
+      uses: slackapi/slack-github-action@v1.24.0
+      with:
+        payload: |
+          {
+            "text": "✅ Kubernetes Pod Health Check Passed",
+            "blocks": [
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "✅ *Kubernetes Pod Health Check Passed*\nAll pods are running smoothly in *${{ secrets.CLUSTER_NAME || 'Production' }}* cluster."
+                }
+              }
+            ]
+          }
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+
+    - name: Upload debug information as artifact
+      if: steps.pod-check.outputs.has_problematic_pods == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: pod-debug-info
+        path: |
+          failed_pods.txt
+          detailed_failed_pods.txt
+          debug_info.txt
+        retention-days: 7
