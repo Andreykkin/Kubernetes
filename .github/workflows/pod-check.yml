@@ -21,7 +21,7 @@ jobs:
       env:
         KUBECONFIG: /home/andreykkin/.kube/config-k8s
       run: |
-        kubectl --context k8s get pods -A --no-headers | grep -E 'CrashLoopBackOff|Error|Failed' > failed_pods.txt || true
+        kubectl --context k8s get pods -A --no-headers | grep 'CrashLoopBackOff|Error|Failed' > failed_pods.txt || true
         if [ -s failed_pods.txt ]; then
           echo "failed=true" >> $GITHUB_OUTPUT
         else
