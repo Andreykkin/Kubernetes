@@ -24,7 +24,7 @@ jobs:
         if [ -n "${{ github.event.inputs.namespace }}" ]; then
           NAMESPACE_FLAG="-n ${{ github.event.inputs.namespace }}"
         else
-          NAMESPACE_FLAG="-A"
+          NAMESPACE_FLAG="-n Default"
         fi
         
         # Get problematic pods (Failed, Error, CrashLoopBackOff, ImagePullBackOff, etc.)
