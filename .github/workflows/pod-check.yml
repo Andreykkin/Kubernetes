@@ -17,6 +17,8 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+    - name:
+      run: sudo apt install -y openssh
 
     - name: Set up kubectl
       uses: azure/setup-kubectl@v3
