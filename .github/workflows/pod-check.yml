@@ -30,7 +30,7 @@ jobs:
 
     - name: SSH Port Forwarding
       run: |
-        ssh -o StrictHostKeyChecking=no -L 6443:127.0.0.1:6443 root@192.168.208.7 -N
+        ssh -fN -L 6443:127.0.0.1:6443 root@192.168.208.7
 
     - name: Configure Kubernetes context
       run: |
