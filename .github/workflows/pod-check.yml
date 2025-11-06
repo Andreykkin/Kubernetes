@@ -26,9 +26,9 @@ jobs:
     - name: SetupSSH
       uses: appleboy/ssh-action@v1.2.2
       with:
-        host: "#{{ secrets.HOST }}"
+        host: ${{ secrets.HOST }}
         username: root
-        key: "#{{ secrets.SSH_PRIVATE_KEY }}"
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
         proxy_host: ${{ secrets.PROXY_HOST }}
         proxy_username: ${{ secrets.PROXY_USERNAME }}
         proxy_key: ${{ secrets.PROXY_KEY }}
