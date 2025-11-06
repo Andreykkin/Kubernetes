@@ -27,7 +27,8 @@ jobs:
 
     - name: Setup SSH private key
       run: |
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" ~/.ssh/id_rsa
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+        echo "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
 
     - name: Setup Bastion Config
       run: |
