@@ -3,11 +3,6 @@ on:
   schedule:
     - cron: '*/60 * * * *'
   workflow_dispatch:
-    inputs:
-      namespace:
-        description: 'Specific namespace to check (default: all namespaces)'
-        required: false
-        default: ''
 
 jobs:
   pod-health-check:
@@ -21,8 +16,8 @@ jobs:
       env:
         KUBECONFIG: /home/andreykkin/.kube/config-k8s
       run: |
-        kubectl --context k8s get pods -A --no-headers | grep 'CrashLoopBackOff|Error|Failed' > failed_pods.txt || true
-        if [ -s failed_pods.txt ]; then
+        kubectl --context k8s get pods -A --no-headers | grep 'CrashLoopBackOff|Error|Failed' > fail.txt
+        if [ -s fail.txt ]; then
           echo "failed=true" >> $GITHUB_OUTPUT
         else
           echo "failed=false" >> $GITHUB_OUTPUT
@@ -69,14 +64,3 @@ jobs:
       env:
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
-
-    - name: Upload debug information as artifact
-      if: steps.pod-check.outputs.has_problematic_pods == 'true'
-      uses: actions/upload-artifact@v4
-      with:
-        name: pod-debug-info
-        path: |
-          failed_pods.txt
-          detailed_failed_pods.txt
-          debug_info.txt
-        retention-days: 7
