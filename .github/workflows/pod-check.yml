@@ -17,120 +17,41 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Check pod status
-      id: pod-check
-      run: |
-        # Set namespace if provided, otherwise check all namespaces
-        NAMESPACE_FLAG=""
-        if [ -n "${{ github.event.inputs.namespace }}" ]; then
-          NAMESPACE_FLAG="-n ${{ github.event.inputs.namespace }}"
-        else
-          NAMESPACE_FLAG="-n Default"
-        fi
-        
-        # Get problematic pods (Failed, Error, CrashLoopBackOff, ImagePullBackOff, etc.)
-        kubectl get pods --context k8s $NAMESPACE_FLAG --field-selector=status.phase!=Running,status.phase!=Succeeded --no-headers > failed_pods.txt || true
-        
-        # Count total problematic pods
-        PROBLEMATIC_PODS_COUNT=$(cat failed_pods.txt | wc -l | tr -d ' ')
-        
-        # Get detailed information about problematic pods
-        if [ $PROBLEMATIC_PODS_COUNT -gt 0 ]; then
-          echo "❌ Found $PROBLEMATIC_PODS_COUNT problematic pod(s)"
-          
-          # Get detailed pod information
-          kubectl get pods --context k8s $NAMESPACE_FLAG --field-selector=status.phase!=Running,status.phase!=Succeeded -o wide > detailed_failed_pods.txt
-          
-          # Get pod events and logs for troubleshooting
-          echo "### Troubleshooting Information:" > debug_info.txt
-          while IFS= read -r line; do
-            if [ -n "$line" ]; then
-              POD_NAME=$(echo "$line" | awk '{print $2}')
-              NAMESPACE=$(echo "$line" | awk '{print $1}')
-              echo "--- Pod: $POD_NAME (Namespace: $NAMESPACE) ---" >> debug_info.txt
-              
-              # Get pod events
-              echo "Events:" >> debug_info.txt
-              kubectl get events --context k8s -n $NAMESPACE --field-selector involvedObject.name=$POD_NAME --sort-by='.lastTimestamp' >> debug_info.txt 2>/dev/null || echo "No events found" >> debug_info.txt
-              
-              # Get pod description
-              echo -e "\nDescription:" >> debug_info.txt
-              kubectl describe --context k8s pod $POD_NAME -n $NAMESPACE >> debug_info.txt 2>/dev/null || echo "Cannot describe pod" >> debug_info.txt
-              
-              echo -e "\n" >> debug_info.txt
-            fi
-          done < failed_pods.txt
-        else
-          echo "✅ All pods are healthy!"
-        fi
-        
-        # Set outputs for Slack notification
-        echo "problematic_pods_count=$PROBLEMATIC_PODS_COUNT" >> $GITHUB_OUTPUT
-        echo "has_problematic_pods=$(if [ $PROBLEMATIC_PODS_COUNT -gt 0 ]; then echo 'true'; else echo 'false'; fi)" >> $GITHUB_OUTPUT
+      - name: Check pod status
+        id: pods
+        env:
+          KUBECONFIG: /home/runner/.kube/config-k8s   # kubeconfig path
+        run: |
+          kubectl --context=k8s get pods -A --no-headers | grep -E 'CrashLoopBackOff|Error|Failed' > failed_pods.txt || true
+          if [ -s failed_pods.txt ]; then
+            echo "failed=true" >> $GITHUB_OUTPUT
+          else
+            echo "failed=false" >> $GITHUB_OUTPUT
+          fi
 
     - name: Send Slack notification for failed pods
-      if: steps.pod-check.outputs.has_problematic_pods == 'true'
+      if: steps.pod-check.outputs.failed == 'true'
       uses: slackapi/slack-github-action@v1.24.0
       with:
         payload: |
           {
-            "text": "🚨 Kubernetes Pod Health Alert",
+            "text": "❌ Kubernetes Pod Health Check Passed",
             "blocks": [
               {
-                "type": "header",
-                "text": {
-                  "type": "plain_text",
-                  "text": "🚨 Kubernetes Pod Health Alert"
-                }
-              },
-              {
-                "type": "section",
-                "fields": [
-                  {
-                    "type": "mrkdwn",
-                    "text": "*Cluster:*\n${{ secrets.CLUSTER_NAME || 'Production' }}"
-                  },
-                  {
-                    "type": "mrkdwn",
-                    "text": "*Problematic Pods:*\n${{ steps.pod-check.outputs.problematic_pods_count }}"
-                  }
-                ]
-              },
-              {
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "*Affected Pods:*\n```${{ env.FAILED_PODS_LIST }}```"
+                  "text": "❌ *Kubernetes Pod Health Check Failed*\nSome pods are failed in *K8s* cluster."
                 }
-              },
-              {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": "Please check the cluster and investigate the failing pods."
-                }
-              },
-              {
-                "type": "actions",
-                "elements": [
-                  {
-                    "type": "button",
-                    "text": {
-                      "type": "plain_text",
-                      "text": "View GitHub Action"
-                    },
-                    "url": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-                  }
-                ]
               }
             ]
           }
       env:
-        FAILED_PODS_LIST: ${{ steps.pod-check.outputs.failed_pods_list }}
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
 
     - name: Send success notification
-      if: steps.pod-check.outputs.has_problematic_pods == 'false'
+      if: steps.pod-check.outputs.failed == 'false'
       uses: slackapi/slack-github-action@v1.24.0
       with:
         payload: |
@@ -141,7 +62,7 @@ jobs:
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "✅ *Kubernetes Pod Health Check Passed*\nAll pods are running smoothly in *${{ secrets.CLUSTER_NAME || 'Production' }}* cluster."
+                  "text": "✅ *Kubernetes Pod Health Check Passed*\nAll pods are running smoothly in *K8s* cluster."
                 }
               }
             ]
