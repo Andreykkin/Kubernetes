@@ -17,17 +17,16 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Check pod status
-      - name: Check pod status
-        id: pods
-        env:
-          KUBECONFIG: /home/runner/.kube/config-k8s   # kubeconfig path
-        run: |
-          kubectl --context=k8s get pods -A --no-headers | grep -E 'CrashLoopBackOff|Error|Failed' > failed_pods.txt || true
-          if [ -s failed_pods.txt ]; then
-            echo "failed=true" >> $GITHUB_OUTPUT
-          else
-            echo "failed=false" >> $GITHUB_OUTPUT
-          fi
+      id: pod-check
+      env:
+        KUBECONFIG: /home/runner/.kube/config-k8s
+      run: |
+        kubectl --context=k8s get pods -A --no-headers | grep -E 'CrashLoopBackOff|Error|Failed' > failed_pods.txt || true
+        if [ -s failed_pods.txt ]; then
+          echo "failed=true" >> $GITHUB_OUTPUT
+        else
+          echo "failed=false" >> $GITHUB_OUTPUT
+        fi
 
     - name: Send Slack notification for failed pods
       if: steps.pod-check.outputs.failed == 'true'
