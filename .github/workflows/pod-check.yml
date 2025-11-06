@@ -143,7 +143,6 @@ jobs:
           }
       env:
         FAILED_PODS_LIST: ${{ steps.pod-check.outputs.failed_pods_list }}
-      env:
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
 
