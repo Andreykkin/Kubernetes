@@ -11,37 +11,14 @@ on:
 
 jobs:
   pod-health-check:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up kubectl
-      uses: azure/setup-kubectl@v3
-      with:
-        version: 'latest'
-
-    - name: SetupSSH
-      uses: appleboy/ssh-action@v1.2.2
-      with:
-        host: ${{ secrets.HOST }}
-        username: root
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        proxy_host: ${{ secrets.PROXY_HOST }}
-        proxy_username: ${{ secrets.PROXY_USERNAME }}
-        proxy_key: ${{ secrets.SSH_PRIVATE_KEY }}
-        proxy_port: ${{ secrets.PROXY_PORT }}
-
-    - name: Configure Kubernetes context
-      run: |
-        echo "${{ secrets.KUBECONFIG }}" > kubeconfig.yaml
-        export KUBECONFIG=kubeconfig.yaml
-
     - name: Check pod status
       id: pod-check
       run: |
-        export KUBECONFIG=kubeconfig.yaml
-        
         # Set namespace if provided, otherwise check all namespaces
         NAMESPACE_FLAG=""
         if [ -n "${{ github.event.inputs.namespace }}" ]; then
@@ -51,7 +28,7 @@ jobs:
         fi
         
         # Get problematic pods (Failed, Error, CrashLoopBackOff, ImagePullBackOff, etc.)
-        kubectl --context k8s get pods $NAMESPACE_FLAG --field-selector=status.phase!=Running,status.phase!=Succeeded --no-headers > failed_pods.txt || true
+        kubectl get pods --context k8s $NAMESPACE_FLAG --field-selector=status.phase!=Running,status.phase!=Succeeded --no-headers > failed_pods.txt || true
         
         # Count total problematic pods
         PROBLEMATIC_PODS_COUNT=$(cat failed_pods.txt | wc -l | tr -d ' ')
@@ -61,7 +38,7 @@ jobs:
           echo "❌ Found $PROBLEMATIC_PODS_COUNT problematic pod(s)"
           
           # Get detailed pod information
-          kubectl get pods $NAMESPACE_FLAG --field-selector=status.phase!=Running,status.phase!=Succeeded -o wide > detailed_failed_pods.txt
+          kubectl get pods --context k8s $NAMESPACE_FLAG --field-selector=status.phase!=Running,status.phase!=Succeeded -o wide > detailed_failed_pods.txt
           
           # Get pod events and logs for troubleshooting
           echo "### Troubleshooting Information:" > debug_info.txt
@@ -73,11 +50,11 @@ jobs:
               
               # Get pod events
               echo "Events:" >> debug_info.txt
-              kubectl get events -n $NAMESPACE --field-selector involvedObject.name=$POD_NAME --sort-by='.lastTimestamp' >> debug_info.txt 2>/dev/null || echo "No events found" >> debug_info.txt
+              kubectl get events --context k8s -n $NAMESPACE --field-selector involvedObject.name=$POD_NAME --sort-by='.lastTimestamp' >> debug_info.txt 2>/dev/null || echo "No events found" >> debug_info.txt
               
               # Get pod description
               echo -e "\nDescription:" >> debug_info.txt
-              kubectl describe pod $POD_NAME -n $NAMESPACE >> debug_info.txt 2>/dev/null || echo "Cannot describe pod" >> debug_info.txt
+              kubectl describe --context k8s pod $POD_NAME -n $NAMESPACE >> debug_info.txt 2>/dev/null || echo "Cannot describe pod" >> debug_info.txt
               
               echo -e "\n" >> debug_info.txt
             fi
