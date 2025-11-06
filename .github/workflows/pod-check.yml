@@ -31,7 +31,7 @@ jobs:
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         proxy_host: ${{ secrets.PROXY_HOST }}
         proxy_username: ${{ secrets.PROXY_USERNAME }}
-        proxy_key: ${{ secrets.PROXY_KEY }}
+        proxy_key: ${{ secrets.SSH_PRIVATE_KEY }}
         proxy_port: ${{ secrets.PROXY_PORT }}
 
     - name: SSH Port Forwarding
