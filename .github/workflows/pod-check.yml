@@ -29,6 +29,7 @@ jobs:
 
     - name: Setup Bastion Config
       run: |
+        touch ~/.ssh/config 
         echo "${{ secrets.SSH_CONFIG }}" > ~/.ssh/config
 
     - name: SSH Port Forwarding
