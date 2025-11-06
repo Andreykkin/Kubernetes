@@ -32,10 +32,6 @@ jobs:
         proxy_key: ${{ secrets.SSH_PRIVATE_KEY }}
         proxy_port: ${{ secrets.PROXY_PORT }}
 
-    - name: SSH Port Forwarding
-      run: |
-        ssh -fN -L 6443:127.0.0.1:6443 root@${{ secrets.HOST }}
-
     - name: Configure Kubernetes context
       run: |
         echo "${{ secrets.KUBECONFIG }}" > kubeconfig.yaml
@@ -55,7 +51,7 @@ jobs:
         fi
         
         # Get problematic pods (Failed, Error, CrashLoopBackOff, ImagePullBackOff, etc.)
-        kubectl get pods $NAMESPACE_FLAG --field-selector=status.phase!=Running,status.phase!=Succeeded --no-headers > failed_pods.txt || true
+        kubectl --context k8s get pods $NAMESPACE_FLAG --field-selector=status.phase!=Running,status.phase!=Succeeded --no-headers > failed_pods.txt || true
         
         # Count total problematic pods
         PROBLEMATIC_PODS_COUNT=$(cat failed_pods.txt | wc -l | tr -d ' ')
