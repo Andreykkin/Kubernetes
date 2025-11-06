@@ -1,10 +1,8 @@
 name: Kubernetes Pod Health Check
 on:
   schedule:
-    # Run every 60 minutes
     - cron: '*/60 * * * *'
   workflow_dispatch:
-    # Allow manual triggering
     inputs:
       namespace:
         description: 'Specific namespace to check (default: all namespaces)'
@@ -25,17 +23,16 @@ jobs:
       with:
         version: 'latest'
 
-    - name: Setup SSH private key
-      run: |
-        mkdir ~/.ssh/ 
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-        echo "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
-
-    - name: Setup Bastion Config
-      run: |
-        touch ~/.ssh/config ;
-        echo "${{ secrets.SSH_CONFIG }}" > ~/.ssh/config ;
-
+    - name: SetupSSH
+      uses: appleboy/ssh-action@v1.2.2
+      with:
+        host: "#{{ secrets.HOST }}"
+        username: root
+        key: "#{{ secrets.SSH_PRIVATE_KEY }}"
+        proxy_host: ${{ secrets.PROXY_HOST }}
++       proxy_username: ${{ secrets.PROXY_USERNAME }}
++       proxy_key: ${{ secrets.PROXY_KEY }}
++       proxy_port: ${{ secrets.PROXY_PORT }}
 
     - name: SSH Port Forwarding
       run: |
