@@ -27,7 +27,6 @@ jobs:
       run: |
         echo "${{ secrets.KUBECONFIG }}" > kubeconfig.yaml
         export KUBECONFIG=kubeconfig.yaml
-        ssh -L 6444:127.0.0.1:6443 root@192.168.208.8 -f -N
 
     - name: Check pod status
       id: pod-check
