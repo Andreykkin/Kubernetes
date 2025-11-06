@@ -23,6 +23,15 @@ jobs:
       with:
         version: 'latest'
 
+    - name: Setup SSH Agent
+      uses: webfactory/ssh-agent@v0.9.0
+      with:
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+    - name: SSH Port Forwarding
+      run: |
+        ssh -o StrictHostKeyChecking=no -L 6443:127.0.0.1:6443 root@192.168.208.7 -f -N
+
     - name: Configure Kubernetes context
       run: |
         echo "${{ secrets.KUBECONFIG }}" > kubeconfig.yaml
