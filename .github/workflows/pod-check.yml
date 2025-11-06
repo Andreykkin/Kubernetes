@@ -28,6 +28,10 @@ jobs:
       with:
         ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
+    - name: Setup Bastion Config
+      run: |
+      echo "${{ secrets.SSH_CONFIG }}" > ~/.ssh/config
+
     - name: SSH Port Forwarding
       run: |
         ssh -fN -L 6443:127.0.0.1:6443 root@192.168.208.7
